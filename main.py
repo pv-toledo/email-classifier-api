@@ -1,5 +1,7 @@
 import logging
-from fastapi import FastAPI, UploadFile, File
+import pandas as pd
+import io
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from services.classifier import get_email_classification
@@ -10,47 +12,57 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-logger= logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class EmailRequest(BaseModel):
     content: str
 
-app = FastAPI()
+app = FastAPI(
+    title="API de Classificação de Emails",
+    description="Processa emails individualmente ou em lote via upload de CSV/Excel para classificação e sugestão de resposta com IA."
+)
 
-@app.get("/")
-async def root():
-    return{"message": "Hello World"}
-
-@app.post("/classify")
+@app.post("/process-single-email")
 async def classify_email(request: EmailRequest):
-    logger.info("Endpoint /classify chamado com texto.")
-
+    logger.info("Endpoint /process-single-email chamado com texto.")
     email_text = request.content
-     
     result = get_email_classification(email_text)
-
+    logger.info("Classificação de texto concluída com sucesso.")
     return {
         "received_text": email_text,
         **result
     }
 
-@app.post("/classify/file")
-async def classify_email_from_file(file: UploadFile = File(...)):
-    logger.info(f"Endpoint /classify/file chamado com o arquivo: {file.filename}")
+@app.post("/process-batch")
+async def process_batch(file: UploadFile = File(...)):
+    logger.info(f"Endpoint /process-batch chamado com o arquivo: {file.filename}")
     
+    if not file.filename.endswith(('.csv', '.xlsx')):
+        raise HTTPException(status_code=400, detail="Formato de arquivo inválido. Por favor, envie um .csv ou .xlsx")
+
     try:
         contents = await file.read()
-        email_text = contents.decode("utf-8")
-    except Exception as e:
-        return {"error": "Houve um erro ao ler o arquivo. Verifique se ele é um arquivo de texto (.txt) válido.", "details": str(e)}
-    finally:
-        await file.close()
-    
-    result = get_email_classification(email_text)
-    
-    return {
-        "filename": file.filename,
-        "content_type": file.content_type,
-        **result
-    }
+        file_stream = io.BytesIO(contents)
 
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(file_stream)
+        else:
+            df = pd.read_excel(file_stream)
+        
+        if 'texto_do_email' not in df.columns:
+            raise HTTPException(status_code=400, detail="O arquivo deve conter uma coluna chamada 'texto_do_email'.")
+
+        results = []
+        logger.info(f"Processando {len(df)} emails do arquivo {file.filename}...")
+
+        for email_text in df['texto_do_email']:
+            if isinstance(email_text, str) and email_text.strip():
+                ai_result = get_email_classification(email_text) 
+                results.append({"email_original": email_text, **ai_result})
+        
+        logger.info("Processamento em lote concluído com sucesso.")
+        return results
+
+    except Exception as e:
+        logger.error(f"Erro ao processar o arquivo em lote: {e}")
+        raise HTTPException(status_code=500, detail=f"Ocorreu um erro ao processar o arquivo: {e}")

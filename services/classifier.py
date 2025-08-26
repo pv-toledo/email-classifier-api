@@ -1,63 +1,47 @@
 import os
 import logging
-import requests
+import json
+import google.generativeai as genai
 from dotenv import load_dotenv
+from cleantext import clean
+
+from .prompt_templates import EMAIL_RESPONSE_PROMPT_TEMPLATE
 
 load_dotenv()
-
 logger = logging.getLogger(__name__)
 
-API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
-if not API_TOKEN:
-    raise ValueError("Chave da API da Hugging Face não encontrada. Verifique seu arquivo .env")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    raise ValueError("Chave da API do Google não encontrada.")
 
-MODEL_NAME = "facebook/bart-large-mnli"
-API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
-HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
+genai.configure(api_key=GOOGLE_API_KEY)
 
 def get_email_classification(email_text: str) -> dict:
-
-    if not email_text or not isinstance(email_text, str) or not email_text.strip():
-        return {"error": "Texto do email inválido ou vazio."}
+ 
+    cleaned_text = clean(
+        email_text,
+        no_urls=True, no_emails=True, no_phone_numbers=True,
+        replace_with_url="[LINK]", replace_with_email="[EMAIL]", replace_with_phone_number="[TELEFONE]"
+    )
     
-    original_length = len(email_text)
-    if original_length > 3000:
-        email_text = email_text[:3000]
-        logger.warning(f"Texto truncado de {original_length} para 3000 caracteres")
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
-        
-    payload = {
-        "inputs": email_text,
-        "parameters" : {
-            "candidate_labels": ["Produtivo", "Improdutivo"]
-        },
-        "options": {
-            "wait_for_model": True
-        }
-    }
+    prompt = EMAIL_RESPONSE_PROMPT_TEMPLATE.format(email_text=cleaned_text)
 
     try:
-        logger.info("Enviando requisição para a API da Hugging Face...")
-        response = requests.post(API_URL, headers=HEADERS, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        logger.info("Resposta da API recebida com sucesso.")
+        logger.info("Enviando requisição para a API do Google Gemini...")
+        
+        generation_config = genai.GenerationConfig(response_mime_type="application/json")
 
-        top_score_index = result["scores"].index(max(result["scores"]))
-        classification = result["labels"][top_score_index]
+        response = model.generate_content(prompt, generation_config=generation_config)
+        
+        result_json = json.loads(response.text)
+        logger.info(f"Resposta recebida do Gemini: {result_json}")
 
-        suggested_response = "Resposta padrão."
-        if classification == "Produtivo":
-            suggested_response = "Obrigado pelo seu email. Estamos analisando e retornaremos em breve."
-        elif classification == "Improdutivo":
-            suggested_response = "Agradecemos a mensagem. Arquivaremos para referência."
-
-        return {"classification": classification, "suggested_response": suggested_response}
-    
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Falha na comunicação com a API de IA: {e}")
-        return {"error": "Falha ao contatar a API de IA.", "details": str(e)}
-    
-    except (KeyError, IndexError) as e:
-        logger.error(f"Resposta inesperada da API de IA: {e}")
-        return {"error": "Resposta inválida da API de IA.", "details": str(e), "raw_response": result if 'result' in locals() else 'N/A'}
+        return {
+            "classification": result_json.get("classification", "Desconhecido"),
+            "suggested_response": result_json.get("suggested_response", "Não foi possível gerar uma resposta.")
+        }
+    except Exception as e:
+        logger.error(f"Erro na API do Google Gemini: {e}")
+        return {"error": "Falha ao contatar a API do Gemini.", "details": str(e)}
