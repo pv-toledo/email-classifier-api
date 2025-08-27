@@ -45,7 +45,7 @@ async def classify_email(request: EmailRequest):
     result = get_email_classification(email_text)
     logger.info("Classificação de texto concluída com sucesso.")
     return {
-        "received_text": email_text,
+        "original_email": email_text,
         **result
     }
 
@@ -74,7 +74,7 @@ async def process_batch(file: UploadFile = File(...)):
         for email_text in df['texto_do_email']:
             if isinstance(email_text, str) and email_text.strip():
                 ai_result = get_email_classification(email_text)
-                results.append({"email_original": email_text, **ai_result})
+                results.append({"original_email": email_text, **ai_result})
         
         
         logger.info("Processamento em lote concluído com sucesso.")
