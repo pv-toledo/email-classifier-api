@@ -4,6 +4,9 @@ import io
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
+from fastapi.middleware.cors import CORSMiddleware
+from config import ALLOWED_ORIGINS
+
 from services.classifier import get_email_classification
 
 logging.basicConfig(
@@ -20,6 +23,19 @@ class EmailRequest(BaseModel):
 app = FastAPI(
     title="API de Classificação de Emails",
     description="Processa emails individualmente ou em lote via upload de CSV/Excel para classificação e sugestão de resposta com IA."
+)
+
+origins = [
+    "http://localhost:3000", 
+]
+
+# 3. Adicione o middleware à sua aplicação
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.post("/process-single-email")
