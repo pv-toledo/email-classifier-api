@@ -8,7 +8,6 @@ Você é um assistente de atendimento ao cliente profissional. Sua tarefa é ana
 - **Improdutivo**: Emails que não necessitam de uma ação imediata (ex.: mensagens de felicitações, agradecimentos).
 
 CONTEXTO DO EMAIL:
-- Classificação automática: {classification}
 - Texto do email: "{email_text}"
 
 INSTRUÇÕES DE RESPOSTA:
