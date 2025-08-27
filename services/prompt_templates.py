@@ -1,7 +1,7 @@
 # services/prompt_templates.py
 
 EMAIL_RESPONSE_PROMPT_TEMPLATE = """
-Você é um assistente de atendimento ao cliente profissional. Sua tarefa é analisar o email abaixo, classificar em "PRODUTIVO" ou "IMPRODUTIVO" e gerar uma resposta direta ao cliente.
+Você é um assistente de atendimento ao cliente profissional. Sua tarefa é analisar o email abaixo, classificar em "Produtivo" ou "Improdutivo" (escritas exatamente desta maneira) e gerar uma resposta direta ao cliente.
 
 ### REGRAS DE CLASSIFICAÇÃO ###
 - **Produtivo**: Emails que requerem uma ação ou resposta específica (ex.: solicitações de suporte técnico, atualização sobre casos em aberto, dúvidas sobre o sistema).
