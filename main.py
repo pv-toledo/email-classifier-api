@@ -49,7 +49,7 @@ async def classify_email(request: EmailRequest):
         **result
     }
 
-@app.post("/process-batch")
+@app.post("/process-batch", summary="Processa um lote de emails de um arquivo CSV ou Excel")
 async def process_batch(file: UploadFile = File(...)):
     logger.info(f"Endpoint /process-batch chamado com o arquivo: {file.filename}")
     
@@ -61,7 +61,7 @@ async def process_batch(file: UploadFile = File(...)):
         file_stream = io.BytesIO(contents)
 
         if file.filename.endswith('.csv'):
-            df = pd.read_csv(file_stream)
+            df = pd.read_csv(file_stream, quotechar='"')
         else:
             df = pd.read_excel(file_stream)
         
@@ -73,8 +73,9 @@ async def process_batch(file: UploadFile = File(...)):
 
         for email_text in df['texto_do_email']:
             if isinstance(email_text, str) and email_text.strip():
-                ai_result = get_email_classification(email_text) 
+                ai_result = get_email_classification(email_text)
                 results.append({"email_original": email_text, **ai_result})
+        
         
         logger.info("Processamento em lote concluído com sucesso.")
         return results
